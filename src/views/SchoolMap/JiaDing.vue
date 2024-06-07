@@ -6,13 +6,25 @@
             <div class="button-container">
                 <!-- 同济大学校园地图 -->
                 <el-button type="primary" icon="el-icon-search" circle @click="drawer_primary = true"></el-button>
-                <el-drawer title="同济大学校园地图" :visible.sync="drawer_primary" size="40%" z-index=900
-                    @opened="initPOIComplete">
+                <el-drawer title="同济大学校园地图" :visible.sync="drawer_primary" size="40%" @opened="initPOIComplete"
+                    z-index=900>
                     <div>
-                        <el-input v-model="input" placeholder="请输入想要搜索的地点" id="tipinput"></el-input>
+                        <input v-model="input" placeholder="请输入想要搜索的地点" id="tipinput" style="width: 80%;height: 30px" />
+                        <el-button type="primary" @click="drawer_primary_inner = true">导航</el-button>
+                        <div>
+                            <el-drawer title="步行路径规划" :append-to-body="true" :visible.sync="drawer_primary_inner"
+                                @opened="initWalkingComplete">
+                                <el-input v-model="input1" placeholder="起点" id="from"></el-input>
+                                <el-input v-model="input2" placeholder="终点" id="to"></el-input>
+                                <el-button type="primary" @click="showRoute">出发</el-button>
+                                <div id="panel2"></div>
+
+                            </el-drawer>
+                        </div>
+
                     </div>
                     <!-- 存放关键字搜索同济大学(嘉定校区)详细信息的表格 -->
-                    <div id="panel"></div>
+                    <div id="panel1"></div>
                 </el-drawer>
                 <!-- 同济大学校园通 -->
                 <el-button type="info" icon="el-icon-question" circle @click="drawer_info = true"></el-button>
@@ -133,11 +145,14 @@ export default {
     data() {
         return {
             drawer_primary: false,
+            drawer_primary_inner: false,
             drawer_info: false,
             drawer_courseware: false,
             drawer_calendar: false,
 
             input: '',
+            input1: '',
+            input2: '',
             tabPosition: 'left',
             activeNamesFor1: [],
             activeNamesFor2: [],
@@ -209,7 +224,7 @@ export default {
                     city: "021", // 兴趣点城市设置为上海
                     citylimit: true,  //是否强制限制在设置的城市内搜索
                     map: this.map, // 展现结果的地图实例
-                    panel: "panel", // 结果列表将在此容器中进行展示。
+                    panel: "panel1", // 结果列表将在此容器中进行展示。
                     autoFitView: true // 是否自动调整地图视野使绘制的 Marker点都处于视口的可见范围
                 });
                 placeSearch_shanghai.search("同济大学(嘉定校区)");
@@ -222,6 +237,53 @@ export default {
 
                 }
 
+            });
+        },
+        initWalkingComplete() {
+            // 确保AMap加载完成
+            if (!this.AMap) {
+                console.error("AMap is not loaded");
+                return;
+            }
+            // 换成function()就不行，必须()=>
+            this.AMap.plugin(['AMap.Walking', 'AMap.PlaceSearch', 'AMap.AutoComplete'], () => {
+
+                var auto1 = new this.AMap.AutoComplete({ input: "from" });
+                var auto2 = new this.AMap.AutoComplete({ input: "to" });
+                var placeSearchForFrom = new this.AMap.PlaceSearch({
+                    map: this.map
+                });  // 构造地点查询类
+                var placeSearchForTo = new this.AMap.PlaceSearch({
+                    map: this.map
+                });
+                auto1.on("select", select1);  // 注册监听，当选中某条记录时会触发
+                auto2.on("select", select2);  // 注册监听，当选中某条记录时会触发
+                var points = [];
+                this.points = points;
+                function select1(e) {
+                    placeSearchForFrom.setCity(e.poi.adcode);
+                    placeSearchForFrom.search(e.poi.name);  // 关键字查询
+                    points[0] = { keyword: e.poi.name, city: "上海" };
+                }
+                function select2(e) {
+                    placeSearchForTo.setCity(e.poi.adcode);
+                    placeSearchForTo.search(e.poi.name);  // 关键字查询
+                    points[1] = { keyword: e.poi.name, city: "上海" };
+                }
+            });
+        },
+        showRoute() {
+            var walking = new this.AMap.Walking({
+                map: this.map,
+                panel: "panel2"
+            });
+            walking.search(this.points, function (status, result) {
+                // result即是对应的步行路线数据信息，相关数据结构文档请参考  https://lbs.amap.com/api/javascript-api/reference/route-search#m_WalkingResult
+                if (status === 'complete') {
+                    console.log('绘制步行路线完成')
+                } else {
+                    console.log('步行路线数据查询失败' + result)
+                }
             });
         },
         handleChange(val) {
